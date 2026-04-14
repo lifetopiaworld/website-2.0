@@ -170,3 +170,100 @@ document.addEventListener("keydown", (event) => {
     closeMobileDevModal();
   }
 });
+
+/* =========================
+   ALPHA APPLICANTS PREVIEW
+========================= */
+const ALPHA_SUPABASE_URL = "https://tmyafpistaivcudcscuf.supabase.co";
+const ALPHA_SUPABASE_ANON_KEY = "sb_publishable_O6Vbz0lSwKEHKRIvLkxoVA_KNiKSHzl";
+
+const alphaApplicantsList = document.getElementById("alphaApplicantsList");
+const alphaCount = document.getElementById("alphaCount");
+
+function getAlphaInitial(name) {
+  if (!name || typeof name !== "string") return "A";
+  return name.trim().charAt(0).toUpperCase();
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+async function loadAlphaApplicantsPreview() {
+  if (!alphaApplicantsList) return;
+  if (!ALPHA_SUPABASE_URL || !ALPHA_SUPABASE_ANON_KEY) return;
+
+  try {
+    const previewResponse = await fetch(
+      `${ALPHA_SUPABASE_URL}/rest/v1/alpha_applicants_public?select=display_name,wallet_short&order=created_at.desc&limit=8`,
+      {
+        headers: {
+          apikey: ALPHA_SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${ALPHA_SUPABASE_ANON_KEY}`
+        }
+      }
+    );
+
+    if (!previewResponse.ok) {
+      throw new Error("Failed to load alpha applicants.");
+    }
+
+    const applicants = await previewResponse.json();
+
+    if (!Array.isArray(applicants) || applicants.length === 0) {
+      alphaApplicantsList.innerHTML = `<div class="alpha-empty">No applicants are visible yet.</div>`;
+    } else {
+      alphaApplicantsList.innerHTML = applicants
+        .map((applicant) => {
+          const displayName = escapeHtml(applicant.display_name || "Anonymous");
+          const walletShort = escapeHtml(applicant.wallet_short || "Hidden");
+          const initial = getAlphaInitial(applicant.display_name);
+
+          return `
+            <div class="alpha-item">
+              <div class="alpha-user">
+                <div class="alpha-avatar">${escapeHtml(initial)}</div>
+                <div class="alpha-user-text">
+                  <span class="alpha-name">${displayName}</span>
+                  <span class="alpha-wallet">${walletShort}</span>
+                </div>
+              </div>
+              <span class="alpha-badge">Applicant</span>
+            </div>
+          `;
+        })
+        .join("");
+    }
+
+    if (alphaCount) {
+      const countResponse = await fetch(
+        `${ALPHA_SUPABASE_URL}/rest/v1/alpha_applicants_public?select=id`,
+        {
+          headers: {
+            apikey: ALPHA_SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${ALPHA_SUPABASE_ANON_KEY}`,
+            Prefer: "count=exact"
+          }
+        }
+      );
+
+      const contentRange = countResponse.headers.get("content-range");
+
+      if (contentRange) {
+        const total = contentRange.split("/")[1];
+        if (total && total !== "*") {
+          alphaCount.textContent = `${total}+`;
+        }
+      }
+    }
+  } catch (error) {
+    alphaApplicantsList.innerHTML = `<div class="alpha-error">Unable to load applicants right now.</div>`;
+  }
+}
+
+document.addEventListener("DOMContentLoaded", loadAlphaApplicantsPreview);
